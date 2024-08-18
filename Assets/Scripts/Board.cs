@@ -18,7 +18,16 @@ public sealed class Board : MonoBehaviour
 
     private const float TweenDuration = 0.25f;
 
-    private void Awake() => Instance = this;
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject); // Destroy duplicate instance
+            return;
+        }
+        Instance = this;
+    }
+
 
     private void Start()
     {
