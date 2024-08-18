@@ -49,20 +49,28 @@ public sealed class Board : MonoBehaviour
 
     
 
-    public async void Select(Tile tile)
+    public async Task Select(Tile tile)
     {
-        if(!_selection.Contains(tile)) _selection.Add(tile);
-        if(_selection.Count < 2) return;
+        if (_selection.Count >= 2) return;
+
+        if (!_selection.Contains(tile))
+            _selection.Add(tile);
+            
+        if (_selection.Count < 2) return;
 
         Debug.Log($"Selected: {_selection[0].x}, {_selection[0].y} and {_selection[1].x}, {_selection[1].y}");
 
         await Swap(_selection[0], _selection[1]);
 
-        if(CanPop()) Pop();
-        else await Swap(_selection[0], _selection[1]);
+        if (CanPop()) 
+            await Pop();
+        else 
+            await Swap(_selection[0], _selection[1]);
 
         _selection.Clear();
     }
+
+
 
     public async Task Swap(Tile tile1, Tile tile2)
     {
@@ -118,39 +126,96 @@ public sealed class Board : MonoBehaviour
         return false; 
     }   
 
-    private async void Pop()
+    private async Task Pop()
     {
-        for(var y = 0; y < Height; y++)
+        bool anyMatchFound = false;
+
+        for (var y = 0; y < Height; y++)
         {
-            for(var x = 0; x < Width; x++)
+            for (var x = 0; x < Width; x++)
             {
                 var tile = Tiles[x, y];
-
                 var connectedTiles = tile.GetConnectedTiles();
 
-                if(connectedTiles.Skip(1).Count() < 2) continue;
+                if (connectedTiles.Skip(1).Count() < 2) continue;
+
+                anyMatchFound = true;
 
                 var deflateSequence = DOTween.Sequence();
 
-                foreach(var connectedTile in connectedTiles) deflateSequence.Join(connectedTile.icon.transform.DOScale(Vector3.zero, TweenDuration));
-            
-                await deflateSequence.Play().AsyncWaitForCompletion();
-
-                var inflateSequence = DOTween.Sequence();
-
-                foreach(var connectedTile in connectedTiles)
+                foreach (var connectedTile in connectedTiles)
                 {
-                    connectedTile.Item = ItemDatabase.Items[Random.Range(0, ItemDatabase.Items.Length)];
-
-                    inflateSequence.Join(connectedTile.icon.transform.DOScale(Vector3.one, TweenDuration));
+                    deflateSequence.Join(connectedTile.icon.transform.DOScale(Vector3.zero, TweenDuration));
+                    connectedTile.Item = null; // Clear the item after deflating
                 }
 
-                await inflateSequence.Play().AsyncWaitForCompletion();
+                await deflateSequence.Play().AsyncWaitForCompletion();
             }
+        }
+
+        if (anyMatchFound)
+        {
+            await RefillBoard(); // Refill the board and check for additional matches
         }
     }
 
-    
+
+
+    public Tile GetTile(int x, int y)
+    {
+        if (x < 0 || x >= Width || y < 0 || y >= Height) return null;
+        return Tiles[x, y];
+    }
+
+    private async Task RefillBoard()
+    {
+        bool needsRefill = false;
+
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                if (Tiles[x, y].Item == null) // Empty spot
+                {
+                    needsRefill = true;
+
+                    for (int ny = y + 1; ny < Height; ny++)
+                    {
+                        if (Tiles[x, ny].Item != null)
+                        {
+                            // Move tile down
+                            await Swap(Tiles[x, y], Tiles[x, ny]);
+                            break;
+                        }
+                    }
+
+                    // If no tile found above, spawn a new one
+                    if (Tiles[x, y].Item == null)
+                    {
+                        Tiles[x, y].Item = ItemDatabase.Items[Random.Range(0, ItemDatabase.Items.Length)];
+                        Tiles[x, y].icon.transform.localScale = Vector3.zero;
+                        Tiles[x, y].icon.transform.DOScale(Vector3.one, TweenDuration);
+                    }
+                }
+            }
+        }
+
+        if (needsRefill)
+        {
+            await Task.Delay((int)(TweenDuration * 1000)); // Wait for the refill animations
+            await CheckForMatches(); // Check for new matches after the refill
+        }
+    }
+
+    private async Task CheckForMatches()
+    {
+        while (CanPop())
+        {
+            await Pop();
+            await RefillBoard(); // Refill the board after popping tiles
+        }
+    }
+
 
     
 }

@@ -14,20 +14,30 @@ public sealed class Tile : MonoBehaviour
         get => _item;
         set
         {
-            if(_item == value) return;
+            if (_item == value) return;
             _item = value;
-            icon.sprite = _item.sprite; 
+            
+            if (icon != null && _item != null)
+            {
+                icon.sprite = _item.sprite; 
+            }
+            else
+            {
+                Debug.LogWarning("Icon or Item is null.");
+            }
         }
     }
+
 
     public Image icon;
 
     public Button button;
 
-    public Tile Left => x > 0 ? Board.Instance.Tiles[x - 1, y] : null;
-    public Tile Top => y > 0 ? Board.Instance.Tiles[x , y-1] : null;
-    public Tile Right => x < Board.Instance.Width - 1 ? Board.Instance.Tiles[x + 1, y] : null;
-    public Tile Bottom => y < Board.Instance.Height - 1 ? Board.Instance.Tiles[x, y+1] : null;
+    public Tile Left => Board.Instance.GetTile(x - 1, y);
+    public Tile Top => Board.Instance.GetTile(x, y - 1);
+    public Tile Right => Board.Instance.GetTile(x + 1, y);
+    public Tile Bottom => Board.Instance.GetTile(x, y + 1);
+
 
     public Tile[] Neighbours => new[]
     {
@@ -37,8 +47,13 @@ public sealed class Tile : MonoBehaviour
         Bottom,
     };
 
-    private void Start() => button.onClick.AddListener(() => Board.Instance.Select(this));
-    
+    private void Start() => button.onClick.AddListener(OnTileClicked);
+
+    private async void OnTileClicked()
+    {
+        await Board.Instance.Select(this);
+    }
+
     public List<Tile> GetConnectedTiles(List<Tile> exclude = null)
     {
         var result = new List<Tile>{this,};
